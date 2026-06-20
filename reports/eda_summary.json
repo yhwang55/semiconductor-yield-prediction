@@ -1,0 +1,114 @@
+{
+  "n_samples": 1567,
+  "n_features": 590,
+  "n_pass": 1463,
+  "n_fail": 104,
+  "fail_rate": 0.0664,
+  "imbalance_ratio": 14.07,
+  "n_all_missing_features": 0,
+  "n_heavy_missing_features": 28,
+  "n_zero_var_features": 116,
+  "n_significant_features_p05": 80,
+  "top20_discriminative": [
+    {
+      "feature": "sensor_112",
+      "cohen_d": 0.6007715361132157,
+      "p_value": 0.00014760384875176234
+    },
+    {
+      "feature": "sensor_60",
+      "cohen_d": 0.590134526109813,
+      "p_value": 2.627137969494078e-07
+    },
+    {
+      "feature": "sensor_104",
+      "cohen_d": 0.5712594610356438,
+      "p_value": 6.059669465978069e-07
+    },
+    {
+      "feature": "sensor_159",
+      "cohen_d": 0.5710322010325283,
+      "p_value": 0.11420633709650829
+    },
+    {
+      "feature": "sensor_294",
+      "cohen_d": 0.5174036901466346,
+      "p_value": 0.16875713063518455
+    },
+    {
+      "feature": "sensor_86",
+      "cohen_d": 0.47934198759326746,
+      "p_value": 0.1510031305933932
+    },
+    {
+      "feature": "sensor_130",
+      "cohen_d": 0.47798147595410884,
+      "p_value": 6.837902639643084e-08
+    },
+    {
+      "feature": "sensor_29",
+      "cohen_d": 0.44439016648478286,
+      "p_value": 1.8763301250648426e-05
+    },
+    {
+      "feature": "sensor_511",
+      "cohen_d": 0.4272673665237799,
+      "p_value": 0.0004554044712855691
+    },
+    {
+      "feature": "sensor_317",
+      "cohen_d": 0.38404300673401737,
+      "p_value": 8.276539318544995e-05
+    },
+    {
+      "feature": "sensor_125",
+      "cohen_d": 0.37715008170949765,
+      "p_value": 0.0003207088872252201
+    },
+    {
+      "feature": "sensor_126",
+      "cohen_d": 0.3688751362316998,
+      "p_value": 8.630871733625599e-05
+    },
+    {
+      "feature": "sensor_122",
+      "cohen_d": 0.34991531673209486,
+      "p_value": 0.0005789779638005338
+    },
+    {
+      "feature": "sensor_123",
+      "cohen_d": 0.3461413250963777,
+      "p_value": 0.00019670833250402486
+    },
+    {
+      "feature": "sensor_22",
+      "cohen_d": 0.34598821049608,
+      "p_value": 0.004683333805293891
+    },
+    {
+      "feature": "sensor_131",
+      "cohen_d": 0.3453755145432485,
+      "p_value": 0.00013533884417952057
+    },
+    {
+      "feature": "sensor_181",
+      "cohen_d": 0.34073904608351824,
+      "p_value": 0.0003722923983878326
+    },
+    {
+      "feature": "sensor_128",
+      "cohen_d": 0.3344380056848955,
+      "p_value": 0.0002600557493185638
+    },
+    {
+      "feature": "sensor_349",
+      "cohen_d": 0.3330256333545267,
+      "p_value": 0.010727588487041216
+    },
+    {
+      "feature": "sensor_453",
+      "cohen_d": 0.3325527676634046,
+      "p_value": 0.000544695183039065
+    }
+  ]
+}

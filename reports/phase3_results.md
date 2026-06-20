@@ -1,0 +1,150 @@
+# Phase 3: 비지도 이상탐지 실험 결과
+
+**분석 일자**: 2026-06-20
+**주 지표**: StratifiedKFold (prelim check 결과 — 이유: TimeSeriesSplit의 Fold 편향 확인)
+
+---
+
+## 0. CV 전략 결론 (사전 점검 반영)
+
+Phase 3 이후 **StratifiedKFold를 주 평가 지표**로 사용.
+TimeSeriesSplit은 보조 지표로 병기하되, 소수 클래스 fold 불안정으로 인한
+Recall 고평가 가능성을 인지해야 함.
+→ 세부 근거: `reports/phase3_prelim_check.md`
+
+---
+
+## 1. 실험 1: 비지도 이상탐지 단독 평가 (라벨 미사용)
+
+**설계**: 전체 X에 대해 IF/LOF fit (y 사용 없음), 이상치 예측 결과를 Fail 예측으로 환산
+
+| Model | Contamination | Precision | Recall | F1 | PR-AUC |
+|-------|--------------|-----------|--------|----|--------|
+| IF | 0.050 | 0.177 | 0.135 | 0.153 | 0.116 |
+| LOF | 0.050 | 0.089 | 0.067 | 0.077 | 0.077 |
+| IF | 0.066 ←actual | 0.154 | 0.154 | 0.154 | 0.116 |
+| LOF | 0.066 ←actual | 0.087 | 0.087 | 0.087 | 0.077 |
+| IF | 0.100 | 0.127 | 0.192 | 0.153 | 0.116 |
+| LOF | 0.100 | 0.064 | 0.096 | 0.077 | 0.077 |
+| IF | 0.150 | 0.115 | 0.260 | 0.159 | 0.116 |
+| LOF | 0.150 | 0.051 | 0.115 | 0.071 | 0.077 |
+
+### 해석
+
+**IF (Isolation Forest)**
+- PR-AUC ≈ 0.116: Phase 1 지도학습 baseline (0.180)보다 낮음 ❌
+- contamination 파라미터가 높을수록 Recall↑, Precision↓ (트레이드오프)
+- contamination=actual fail rate(6.64%): Recall=0.154, Precision=0.154
+- **해석**: 공정 변수 자체의 이상 패턴이 불량과 부분적으로 일치.
+  Isolation Forest는 고차원(446개 피처)에서 random splitting을 사용하므로 노이즈 피처가 많을수록 성능 저하
+
+**LOF (Local Outlier Factor)**
+- PR-AUC ≈ 0.077
+- IF 대비 Precision이 더 낮음 — 고차원에서 거리 기반 밀도 추정의 한계
+- n_neighbors=20 설정 기준 평가. Fail 클러스터가 다양한 규모일 경우 단일 n_neighbors 한계 존재
+
+**비지도 vs 지도학습 비교**
+| 방법 | PR-AUC | Recall(Fail) | Precision(Fail) |
+|------|--------|--------------|-----------------|
+| Phase 1 LR (best, SK) | 0.150 | 0.498 | 0.156 |
+| Phase 2 RF SMOTE+RUS (SK) | 0.166 | 0.567 | 0.189 |
+| IF (contamination=0.066) | 0.116 | 0.154 | 0.154 |
+| LOF (contamination=0.066) | 0.077 | 0.087 | 0.087 |
+
+→ 비지도 단독으로는 지도학습 Phase 2 대비 PR-AUC가 낮음.
+  **그러나 라벨 없이 이정도 탐지 가능** = "공정 이상 신호"가 실제로 존재함을 확인.
+
+---
+
+## 2. 실험 2: 이상점수를 피처로 추가 (RF + SMOTE+RUS)
+
+**Pipeline**:
+```
+[StandardScaler] → [AnomalyScoreAdder] → [SMOTE+RUS] → [RandomForest]
+                         ↓
+           fit: train fold만 사용 (누수 없음)
+           output: 원래 446 피처 + IF score + LOF score = 448 피처
+```
+
+### StratifiedKFold 결과 (주 지표)
+
+| 구성 | PR-AUC | F1(Fail) | Recall(Fail) | Precision(Fail) | Opt Thr |
+|------|--------|----------|--------------|-----------------|---------|
+| Phase2: RF+SMOTE+RUS (no anomaly) | 0.166±0.015 | 0.277 | 0.567 | 0.189 | 0.32 |
+| Phase3: +AnomalyScores           | 0.180±0.030 | 0.262 | 0.346 | 0.270 | 0.38 |
+| **변화량** | **+0.014** | -0.016 | -0.220 | +0.081 | — |
+
+### TimeSeriesSplit 결과 (보조 지표)
+
+| 구성 | PR-AUC | F1(Fail) | Recall(Fail) | Precision(Fail) |
+|------|--------|----------|--------------|-----------------|
+| Phase2: RF+SMOTE+RUS (no anomaly) | 0.098 | 0.196 | 0.334 | 0.150 |
+| Phase3: +AnomalyScores           | 0.103 | 0.190 | 0.490 | 0.147 |
+| 변화량 | +0.005 | -0.006 | +0.156 | -0.003 |
+
+---
+
+## 3. PR-AUC 0.18 고착 문제 분석
+
+**결과**: 이상점수 피처 추가 후 PR-AUC 변화 = +0.014 (StratifiedKFold 기준)
+
+### PR-AUC 개선 달성
+
+PR-AUC가 +0.014 개선됨 — 이상점수가 유효한 신호를 추가함.
+
+#### 가설 1: 피처 수 대비 신호 밀도 부족
+- 446개 피처 중 통계적 유의 피처 80개(17.9%) → 노이즈 피처가 82%
+- RF는 bootstrap sampling으로 피처 subset을 선택하지만, 노이즈가 많으면 랜덤 split에 유리한 피처를 만나기 어려움
+- 이상점수 2개는 446개 중 2/448 = 0.45% 비중 → 전체 특성 공간에서 미미한 영향
+
+#### 가설 2: LF(Local Failure) 패턴의 비선형성
+- SECOM 공정 불량은 여러 센서의 비선형 조합으로 발생할 가능성이 높음
+- Isolation Forest와 LOF는 선형/밀도 기반 이상치 탐지 → 복잡한 비선형 상호작용 포착 한계
+- → **Phase 4에서 XGBoost/Gradient Boosting처럼 비선형 분리를 더 잘 학습하는 모델 시도 필요**
+
+#### 가설 3: 불량 샘플 자체가 "이상치"가 아닐 수 있음
+- 불량이 공정 표준값에서 멀리 벗어난 샘플에서만 발생하는 게 아닐 수 있음
+- "정상 범위 내 공정 파라미터 조합"이 불량을 유발하는 케이스 → Isolation Forest가 탐지 불가
+- Phase 3 결과가 이 가설을 일부 지지: IF Recall ≈ 0.154 (낮음)
+
+---
+
+## 4. 전체 3-way 비교 (StratifiedKFold 기준)
+
+| 방법 분류 | 구체 구성 | PR-AUC | F1(Fail) | Recall(Fail) | Precision(Fail) |
+|-----------|-----------|--------|----------|--------------|-----------------|
+| 비지도 단독 | IF (c=0.066) | 0.116 | 0.154 | 0.154 | 0.154 |
+| 비지도 단독 | LOF (c=0.066) | 0.077 | 0.087 | 0.087 | 0.087 |
+| Phase2 (지도) | RF+SMOTE+RUS | 0.166 | 0.277 | 0.567 | 0.189 |
+| Phase3 (지도+비지도) | RF+SMOTE+RUS+Anomaly | 0.180 | 0.262 | 0.346 | 0.270 |
+| **목표** | — | **≥0.40** | — | **≥0.70** | ≥0.20 |
+
+---
+
+## 5. Phase 4로 넘어가야 하는 이유
+
+Phase 3까지의 실험이 증명한 것: **피처 품질과 모델 아키텍처가 PR-AUC를 결정하는 핵심 요인**
+
+1. **단순 불균형 처리(Phase 2)**: Recall↑ 가능, 그러나 PR-AUC 고착
+2. **비지도 이상탐지(Phase 3)**: 이상 신호 존재는 확인, 지도학습 대비 PR-AUC 열세
+3. **이상점수 피처 추가(Phase 3)**: PR-AUC 변화 +0.014 — 미미함
+
+**Phase 4 전략**:
+- 피처 선택 (SECOM 통계적 유의 피처 80개 집중 + 이상점수 포함)
+- 더 강력한 비선형 모델: XGBoost / LightGBM (많은 피처에서 자동 선택)
+- SHAP 기반 설명 가능성 분석으로 핵심 공정 변수 규명
+- 이 과정에서 PR-AUC 0.40, Recall 0.70 목표 달성 가능성 검증
+
+---
+
+## 6. 산출 파일
+
+| 파일 | 설명 |
+|------|------|
+| `reports/figures/15_prelim_fold_recall.png` | Fold-level Recall 비교 |
+| `reports/figures/16_p3_anomaly_standalone.png` | 비지도 단독 contamination별 성능 |
+| `reports/figures/17_p3_pr_curves_comparison.png` | 전체 PR Curve 비교 |
+| `reports/figures/18_p3_vs_p2_comparison.png` | Phase 2 vs Phase 3 바 차트 |
+
+---
+*Generated by `notebooks/phase3_unsupervised/01_anomaly_detection.py`*

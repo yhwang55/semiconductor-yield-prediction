@@ -1,0 +1,11 @@
+구성,피처수,PR-AUC,F1(Fail),Recall(Fail),Precision(Fail),note
+P2: RF+SMOTE+RUS (SK),446(+2),0.166,0.277,0.567,0.189,baseline
+P3: RF+Anomaly+SMOTE+RUS (SK),446(+2),0.18,0.262,0.346,0.27,baseline
+P4: XGB_all_446 (SK),446,0.179,0.269,0.329,0.303,default
+P4: LGB_all_446 (SK),446,0.177,0.263,0.385,0.23,default
+P4: XGB_top80_stat (SK),80,0.195,0.293,0.441,0.237,default
+P4: LGB_top80_stat (SK),80,0.196,0.29,0.549,0.199,default
+P4: XGB_top80_model (SK),80,0.207,0.3,0.484,0.283,default
+P4: LGB_top80_model (SK),80,0.196,0.293,0.568,0.218,default
+P4: XGB_tuned_top80_model (SK),80,0.227,0.306,0.558,0.239,tuned
+P4: LGB_tuned_top80_stat (SK),80,0.218,0.303,0.49,0.252,tuned

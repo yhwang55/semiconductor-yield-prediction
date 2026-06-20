@@ -1,0 +1,9 @@
+configuration,pr_auc_mean,pr_auc_std,roc_auc_mean,roc_auc_std,f1_fail_mean,f1_fail_std,recall_fail_mean,recall_fail_std,precision_fail_mean,precision_fail_std,accuracy_mean,accuracy_std,model,imputation,cv
+LogisticRegression | Median | TimeSeriesSplit,0.1274,0.0808,0.6125,0.1055,0.0955,0.0934,0.1677,0.1137,0.1014,0.1382,0.8391,0.0852,LogisticRegression,Median,TimeSeriesSplit
+LogisticRegression | Median | StratifiedKFold,0.1504,0.0252,0.6631,0.0262,0.1493,0.0367,0.1538,0.0465,0.1464,0.0306,0.8851,0.0064,LogisticRegression,Median,StratifiedKFold
+LogisticRegression | MICE | TimeSeriesSplit,0.1186,0.0636,0.6145,0.1041,0.0905,0.1,0.1477,0.1151,0.1078,0.1612,0.8452,0.0805,LogisticRegression,MICE,TimeSeriesSplit
+LogisticRegression | MICE | StratifiedKFold,0.1547,0.0248,0.6626,0.0261,0.1567,0.0434,0.1638,0.0498,0.151,0.0393,0.8839,0.0081,LogisticRegression,MICE,StratifiedKFold
+RandomForest | Median | TimeSeriesSplit,0.1453,0.0845,0.5339,0.0621,0.0,0.0,0.0,0.0,0.0,0.0,0.9502,0.0203,RandomForest,Median,TimeSeriesSplit
+RandomForest | Median | StratifiedKFold,0.18,0.0404,0.7193,0.0581,0.0,0.0,0.0,0.0,0.0,0.0,0.9336,0.0012,RandomForest,Median,StratifiedKFold
+RandomForest | MICE | TimeSeriesSplit,0.1514,0.0925,0.5257,0.0546,0.0,0.0,0.0,0.0,0.0,0.0,0.9502,0.0203,RandomForest,MICE,TimeSeriesSplit
+RandomForest | MICE | StratifiedKFold,0.1704,0.0378,0.7133,0.0561,0.0,0.0,0.0,0.0,0.0,0.0,0.9336,0.0012,RandomForest,MICE,StratifiedKFold

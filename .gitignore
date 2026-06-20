@@ -1,0 +1,35 @@
+# Data files (download via scripts/download_data.py)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# IDE / editor
+.Rhistory
+.RData
+*.Rproj
+.vscode/
+.idea/
+
+# Intermediate LaTeX build files
+*.log
+*.aux
+*.toc
+*.out
