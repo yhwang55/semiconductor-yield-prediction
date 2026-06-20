@@ -66,7 +66,7 @@ UCI SECOM 데이터셋은 실제 반도체 제조 라인에서 수집된 공개 
 
 - **Nonlinear interactions detected**: SHAP Top-20 중 14개(70%)가 단변량 t-검정에서 비유의(p > 0.05)한 SHAP-only 피처 — 단순 SPC 차트로 포착 불가능한 공정 변수 간 상호작용 효과가 존재함을 실증.
 
-- **Business impact estimated at ~$4.06M USD/year**: 연간 12만 웨이퍼 생산, $2,000/wafer, Recall=0.567, 45% 비용 절감률 가정 기준. 선단 공정(3nm~5nm) 적용 시 $10.15M~$30.44M 규모.
+- **Business impact estimated at ~$4.06M USD/year**: 연간 12만 웨이퍼 생산, $2,000/wafer, Recall=0.567, 45% 비용 절감률 가정 기준. 선단 공정(3nm-5nm) 적용 시 $10.15M-$30.44M 규모.
 
 ---
 
