@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Semiconductor Yield Prediction — Yoon Hwang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+<style>
+/* ── Tokens ──────────────────────────────────────────────────────────────── */
+:root {
+  --bg:       #FAFBFC;
+  --surface:  #FFFFFF;
+  --text:     #1A1D29;
+  --muted:    #6B7280;
+  --subtle:   #9CA3AF;
+  --blue:     #1428A0;
+  --blue-dim: #3B50C0;
+  --blue-lt:  #BFD5FF;
+  --red:      #C23B3B;
+  --green:    #2D7D5A;
+  --amber:    #B45309;
+  --border:   #E2E5EA;
+  --border-md:#CDD2DA;
+}
+
+/* ── Reset ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Loading ─────────────────────────────────────────────────────────────── */
+.loading-overlay {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 999; gap: 16px;
+}
+.spinner {
+  width: 28px; height: 28px;
+  border: 2px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+  color: var(--muted);
+  letter-spacing: .04em;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────────────────── */
+nav {
+  background: var(--text);
+  height: 52px;
+  padding: 0 2.5rem;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-logo {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: .92rem;
+  color: #fff;
+  letter-spacing: -.01em;
+  margin-right: auto;
+}
+.nav-logo span {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+  font-size: .75rem;
+  color: rgba(255,255,255,.38);
+  margin-left: .75rem;
+}
+nav a {
+  color: rgba(255,255,255,.45);
+  text-decoration: none;
+  font-size: .72rem;
+  font-weight: 500;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 0 .9rem;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+nav a:hover { color: rgba(255,255,255,.9); border-bottom-color: var(--blue-lt); }
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.section {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 3.5rem 2rem;
+}
+.section-header { margin-bottom: 2rem; }
+.section-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: .65rem;
+  font-weight: 500;
+  letter-spacing: .15em;
+  color: var(--subtle);
+  margin-bottom: .4rem;
+}
+.section-heading {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.025em;
+  line-height: 1.15;
+}
+.page-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* ── Metric strip ────────────────────────────────────────────────────────── */
+.metric-strip {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr 1px 1fr 1px 1fr;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 2rem;
+}
+@media(max-width:680px) {
+  .metric-strip { grid-template-columns: 1fr 1px 1fr; }
+}
+.metric { padding: 1.35rem 1.5rem; text-align: center; }
+.metric-col-divider { background: var(--border); }
+.metric-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: .62rem;
+  font-weight: 500;
+  letter-spacing: .1em;
+  color: var(--subtle);
+  margin-bottom: .5rem;
+}
+.metric-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 2rem;
+  font-weight: 500;
+  color: var(--blue);
+  line-height: 1.05;
+  letter-spacing: -.02em;
+}
+.metric-sub {
+  font-size: .67rem;
+  color: var(--subtle);
+  margin-top: .3rem;
+}
+
+/* ── Circuit trace ───────────────────────────────────────────────────────── */
+.trace-container {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.5rem 1.25rem .5rem;
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+.trace-label {
+  font-family: 'Inter', sans-serif;
+  font-size: .62rem;
+  font-weight: 500;
+  letter-spacing: .12em;
+  color: var(--subtle);
+  margin-bottom: .5rem;
+}
+.trace-svg { width: 100%; display: block; }
+
+/* ── Plot containers ─────────────────────────────────────────────────────── */
+.chart-wrap {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 1.5rem;
+}
+
+/* ── 3-group row ─────────────────────────────────────────────────────────── */
+.group-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 1.5rem;
+}
+@media(max-width:640px){ .group-row { grid-template-columns: 1fr; } }
+.group-card {
+  padding: 1.5rem;
+  border-right: 1px solid var(--border);
+}
+.group-card:last-child { border-right: none; }
+.group-marker-row {
+  display: flex; align-items: center; gap: .45rem; margin-bottom: .85rem;
+}
+.group-marker { width: 9px; height: 9px; flex-shrink: 0; }
+.group-marker-label {
+  font-size: .62rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+}
+.group-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 2.3rem; font-weight: 500; line-height: 1; margin-bottom: .45rem;
+}
+.group-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: .88rem; font-weight: 700; color: var(--text); margin-bottom: .4rem;
+}
+.group-desc {
+  font-size: .74rem; color: var(--muted); line-height: 1.65; margin-bottom: .85rem;
+}
+.sensor-list { display: flex; flex-wrap: wrap; gap: .28rem; }
+.sensor-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .67rem; color: var(--text);
+  border: 1px solid var(--border);
+  padding: .12rem .38rem; background: var(--bg);
+}
+.sensor-hidden { display: none; }
+.expand-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .65rem; color: var(--blue);
+  background: transparent; border: none;
+  padding: .12rem .1rem;
+  cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.expand-btn:hover { color: var(--blue-dim); }
+
+/* ── Interactive layout ──────────────────────────────────────────────────── */
+.interactive-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media(max-width:800px){ .interactive-grid { grid-template-columns: 1fr; } }
+
+/* ── Sliders panel ───────────────────────────────────────────────────────── */
+.sliders-panel {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.5rem;
+}
+.panel-heading {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: .86rem; font-weight: 700; color: var(--text);
+  letter-spacing: -.01em;
+  margin-bottom: 1.25rem;
+  padding-bottom: .7rem;
+  border-bottom: 1px solid var(--border);
+}
+.slider-row { margin-bottom: 1.25rem; }
+.slider-meta {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: .42rem;
+}
+.slider-feat {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .76rem; font-weight: 500; color: var(--text);
+}
+.slider-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .74rem; color: var(--blue);
+}
+
+/* Custom range input — thin track, square thumb */
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%; height: 3px;
+  background: var(--border);
+  outline: none; cursor: pointer; border-radius: 0;
+  --pct: 50%;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 3px;
+  background: linear-gradient(to right, var(--blue) var(--pct), var(--border) var(--pct));
+  border-radius: 0;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  background: var(--blue);
+  border-radius: 2px;
+  cursor: pointer; border: none;
+  margin-top: -5px;
+}
+input[type=range]::-moz-range-track {
+  height: 3px; background: var(--border); border-radius: 0;
+}
+input[type=range]::-moz-range-progress {
+  height: 3px; background: var(--blue);
+}
+input[type=range]::-moz-range-thumb {
+  width: 13px; height: 13px;
+  background: var(--blue); border-radius: 2px; cursor: pointer; border: none;
+}
+
+.slider-ticks {
+  display: flex; justify-content: space-between;
+  margin-top: .32rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .61rem; color: var(--subtle);
+}
+.reset-btn {
+  margin-top: 1rem; padding: .45rem .9rem;
+  background: transparent; color: var(--blue);
+  border: 1px solid var(--border-md);
+  font-family: 'Inter', sans-serif;
+  font-size: .72rem; font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase;
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.reset-btn:hover { background: var(--bg); border-color: var(--blue); }
+
+/* ── Results panel ───────────────────────────────────────────────────────── */
+.results-panel { display: flex; flex-direction: column; gap: 1rem; }
+
+.prob-display {
+  border: 1px solid var(--border); background: var(--surface);
+  padding: 1.5rem; transition: border-color .3s;
+}
+.prob-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: .62rem; font-weight: 500; letter-spacing: .1em;
+  color: var(--subtle); margin-bottom: .55rem;
+}
+.prob-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 3.5rem; font-weight: 500; line-height: 1;
+  color: var(--text); letter-spacing: -.03em;
+  transition: color .3s; margin-bottom: .7rem;
+}
+.prob-bar-track {
+  height: 3px; background: var(--border); margin-bottom: .7rem; overflow: hidden;
+}
+.prob-bar-fill {
+  height: 100%; width: 0%;
+  background: var(--blue);
+  transition: width .4s cubic-bezier(.4,0,.2,1), background .3s;
+}
+.prob-status-row {
+  display: flex; align-items: center; gap: .45rem;
+}
+.prob-status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border-md); flex-shrink: 0; transition: background .3s;
+}
+.prob-status-text {
+  font-size: .74rem; font-weight: 500; color: var(--muted); transition: color .3s;
+  letter-spacing: .02em;
+}
+.prob-display.safe   { border-color: var(--green); }
+.prob-display.warn   { border-color: var(--amber); }
+.prob-display.danger { border-color: var(--red); }
+
+.shap-panel {
+  border: 1px solid var(--border); background: var(--surface);
+  padding: 1.2rem 1.2rem .6rem;
+}
+.shap-panel-heading {
+  font-family: 'Inter', sans-serif;
+  font-size: .62rem; font-weight: 500; letter-spacing: .1em;
+  color: var(--subtle); margin-bottom: .3rem;
+}
+.shap-caption {
+  font-size: .7rem; color: var(--subtle); line-height: 1.55;
+  margin-bottom: .5rem; padding-bottom: .5rem;
+  border-bottom: 1px solid var(--border);
+}
+.slider-pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .65rem; color: var(--subtle);
+  margin-left: .4rem;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 1.4rem 2rem;
+  max-width: 1080px; margin: 0 auto;
+  display: flex; justify-content: space-between;
+  align-items: flex-start; flex-wrap: wrap; gap: .75rem;
+}
+.footer-name {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: .84rem; font-weight: 700; color: var(--text);
+}
+.footer-affil {
+  font-size: .7rem; color: var(--muted); margin-top: .2rem;
+}
+.footer-links {
+  display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap;
+}
+.footer-links a {
+  font-size: .72rem; color: var(--muted); text-decoration: none; transition: color .15s;
+}
+.footer-links a:hover { color: var(--blue); }
+.footer-meta {
+  width: 100%;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .63rem; color: var(--subtle); margin-top: .1rem;
+}
+
+/* ── Instrument header ───────────────────────────────────────────────── */
+.inst-header { border-bottom: 1px solid #1E2D45; }
+.inst-status-bar {
+  background: #0B1220; padding: .55rem 0;
+}
+.inst-inner {
+  max-width: 1080px; margin: 0 auto; padding: 0 2rem;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: .5rem;
+}
+.inst-left, .inst-right {
+  display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .67rem; color: #5B7A9E; white-space: nowrap;
+}
+.inst-blink-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #4ECFB0; flex-shrink: 0;
+  animation: instBlink 2s ease-in-out infinite;
+}
+@keyframes instBlink { 0%,100%{opacity:1} 50%{opacity:.28} }
+.inst-live { color: #4ECFB0; font-weight: 600; letter-spacing: .04em; }
+.inst-sep { color: #1E2D45; user-select: none; }
+.inst-title-bar {
+  background: #0E1626; border-top: 1px solid #1E2D45;
+  padding: 1.25rem 0 1.3rem;
+}
+.inst-h1 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.35rem; font-weight: 500; color: #EDF2F9;
+  letter-spacing: -.025em; margin-bottom: .3rem;
+}
+.inst-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .72rem; color: #5B7A9E; line-height: 1.5;
+}
+
+/* ── Pipeline trace dark (Section 1) ─────────────────────────────────── */
+.pipeline-trace-dark {
+  background: #0B1220; border-radius: 16px;
+  padding: 2rem 2rem 1.6rem; margin-bottom: 2rem;
+}
+.ptd-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: .68rem; font-weight: 500; letter-spacing: .12em; text-transform: uppercase;
+  color: #5B7A9E; margin-bottom: .25rem;
+}
+.ptd-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.22rem; font-weight: 700; color: #EDF2F9;
+  letter-spacing: -.02em; margin-bottom: 1.1rem;
+}
+.ptd-svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+/* ── Gauge card (Section 3) ──────────────────────────────────────────── */
+.gauge-card {
+  background: #0B1220; border: 1px solid #1E2D45;
+  padding: 1.25rem;
+}
+.gauge-layout {
+  display: grid; grid-template-columns: 1fr 1.35fr;
+  gap: 1.4rem; align-items: center;
+}
+@media(max-width:640px){ .gauge-layout { grid-template-columns: 1fr; } }
+.gauge-left {
+  display: flex; flex-direction: column;
+  align-items: center; gap: .55rem;
+}
+.gauge-status-row {
+  display: flex; align-items: center; gap: .4rem; align-self: flex-start;
+}
+.gauge-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #3D5A80; flex-shrink: 0; transition: background .3s;
+}
+.gauge-status-txt {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .66rem; color: #5B7A9E; letter-spacing: .06em;
+  transition: color .3s;
+}
+.gauge-svg-el { width: 190px; height: 190px; }
+.gauge-right { display: flex; flex-direction: column; gap: .9rem; }
+.gauge-badge {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem .7rem; border: 1px solid #1E2D45; background: #0E1626;
+}
+.gauge-badge-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: #3D5A80; transition: background .3s;
+}
+.gauge-badge-txt {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .69rem; color: #5B7A9E; transition: color .3s;
+}
+.gauge-track-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: .59rem; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+  color: #3D5A80; margin-bottom: .4rem;
+}
+.gauge-track {
+  position: relative; height: 4px;
+  background: linear-gradient(to right,
+    #2A9883 0%, #2A9883 30%,
+    #B45309 30%, #B45309 62%,
+    #C23B3B 62%);
+  margin-bottom: .35rem;
+}
+.gauge-track-marker {
+  position: absolute; top: -5px; width: 2px; height: 14px;
+  background: #EDF2F9; transform: translateX(-50%);
+  transition: left .4s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 0 4px rgba(237,242,249,.6);
+}
+.gauge-track-labels {
+  display: flex; justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .58rem; color: #3D5A80;
+}
+.driving-sensor-card {
+  border: 1px solid #1E2D45; background: #0E1626; padding: .75rem;
+}
+.driving-sensor-label {
+  font-family: 'Inter', sans-serif;
+  font-size: .59rem; font-weight: 500; letter-spacing: .1em; text-transform: uppercase;
+  color: #3D5A80; margin-bottom: .55rem;
+}
+.driving-sensor-info { display: flex; align-items: flex-start; gap: .6rem; }
+.ds-glow-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: .18rem;
+  background: #5FA8E8; box-shadow: 0 0 6px #5FA8E8;
+  transition: background .3s, box-shadow .3s;
+}
+.ds-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .78rem; font-weight: 600; color: #B8CCE0; margin-bottom: .18rem;
+}
+.ds-shap {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .67rem; color: #5B7A9E; margin-bottom: .12rem;
+}
+.ds-dir {
+  font-family: 'Inter', sans-serif;
+  font-size: .67rem; color: #5B7A9E; transition: color .3s;
+}
+
+/* ── Wafer block ──────────────────────────────────────────────────────── */
+.wafer-block {
+  background: #0B1220;
+  border-radius: 16px;
+  padding: 2rem 2.2rem 1.8rem;
+  margin-bottom: 2rem;
+  position: relative;
+}
+.wafer-eyebrow-dark {
+  font-family: 'Inter', sans-serif;
+  font-size: .68rem; font-weight: 500; letter-spacing: .12em; text-transform: uppercase;
+  color: #5B7A9E; margin-bottom: .3rem;
+}
+.wafer-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.22rem; font-weight: 700; color: #EDF2F9; letter-spacing: -.02em;
+  margin-bottom: .3rem;
+}
+.wafer-sub {
+  font-size: .71rem; color: #3D5A80; line-height: 1.5; margin-bottom: 1.4rem;
+}
+.wafer-layout {
+  display: flex; gap: 2rem; align-items: center; flex-wrap: wrap;
+}
+.wafer-svg-wrap { flex: 0 0 380px; max-width: 100%; }
+.wafer-svg { width: 100%; height: auto; display: block; }
+.wafer-right {
+  flex: 1; min-width: 180px;
+  display: flex; flex-direction: column; gap: 1.2rem;
+}
+.wafer-legend-heading {
+  font-family: 'Inter', sans-serif;
+  font-size: .6rem; font-weight: 500; letter-spacing: .12em; text-transform: uppercase;
+  color: #3D5A80; margin-bottom: .7rem;
+}
+.wafer-legend-item {
+  display: flex; align-items: flex-start; gap: .7rem; margin-bottom: .7rem;
+}
+.wafer-legend-dot {
+  width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; margin-top: .15rem;
+}
+.wafer-legend-lbl {
+  font-family: 'Inter', sans-serif;
+  font-size: .71rem; color: #6B8BAA; line-height: 1.45;
+}
+.wafer-legend-lbl strong {
+  display: block; color: #B8CCE0; font-size: .73rem; margin-bottom: .08rem;
+}
+.wafer-caption {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .61rem; color: #2A4A60; line-height: 1.7;
+  border-top: 1px solid #162033; padding-top: .85rem;
+}
+.wf-sensor { cursor: pointer; transition: opacity .15s; }
+.wf-sensor:hover { opacity: .8; }
+#wfTip {
+  position: fixed; z-index: 9999;
+  background: #060D18; border: 1px solid #2A3F58;
+  padding: .5rem .75rem; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .69rem; color: #B8CCE0;
+  pointer-events: none; opacity: 0; transition: opacity .12s;
+  white-space: nowrap; line-height: 1.7;
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">initializing · loading onnx model</div>
+</div>
+
+<!-- Instrument header -->
+<div class="inst-header">
+  <div class="inst-status-bar">
+    <div class="inst-inner">
+      <div class="inst-left">
+        <div class="inst-blink-dot"></div>
+        <span class="inst-live">LIVE INFERENCE</span>
+        <span class="inst-sep">|</span>
+        <span>model: xgboost 2.1.4 + optuna 4.9.0</span>
+        <span class="inst-sep">|</span>
+        <span>runtime: onnx web 1.18.0 (wasm)</span>
+      </div>
+      <div class="inst-right">
+        <span>dataset: secom 1,567×590 · 6.64% fail rate</span>
+        <span class="inst-sep">|</span>
+        <span>built: 2025-06 utc</span>
+      </div>
+    </div>
+  </div>
+  <div class="inst-title-bar">
+    <div class="inst-inner" style="display:block">
+      <div class="inst-h1">Semiconductor Yield Prediction</div>
+      <div class="inst-sub">predictive yield modeling &amp; statistical root-cause factor attribution · uci secom dataset</div>
+    </div>
+  </div>
+</div>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">
+    Semiconductor Yield Prediction
+    <span>SECOM · XGBoost · SHAP</span>
+  </div>
+  <a href="#overview">Overview</a>
+  <a href="#insight">Root-Cause</a>
+  <a href="#predict">Predict</a>
+  <a href="https://github.com/yhwang55" target="_blank">GitHub</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 1 — Pipeline Overview
+══════════════════════════════════════════════════════════════════════════════ -->
+<div class="section" id="overview">
+  <div class="section-header">
+    <div class="section-eyebrow">section 01 — pipeline overview</div>
+    <h2 class="section-heading">5-Phase ML Pipeline · UCI SECOM (1,567 × 590)</h2>
+  </div>
+
+  <!-- Metric strip -->
+  <div class="metric-strip">
+    <div class="metric">
+      <div class="metric-eyebrow">pr-auc · stratifiedkfold-5</div>
+      <div class="metric-value">0.227</div>
+      <div class="metric-sub">xgboost + optuna · 50 trials</div>
+    </div>
+    <div class="metric-col-divider"></div>
+    <div class="metric">
+      <div class="metric-eyebrow">recall (fail) · best phase</div>
+      <div class="metric-value">0.567</div>
+      <div class="metric-sub">phase 2 · smote+rus pipeline</div>
+    </div>
+    <div class="metric-col-divider"></div>
+    <div class="metric">
+      <div class="metric-eyebrow">root-cause sensors · shap ∩ t-test</div>
+      <div class="metric-value">6</div>
+      <div class="metric-sub">high-confidence factors</div>
+    </div>
+    <div class="metric-col-divider"></div>
+    <div class="metric">
+      <div class="metric-eyebrow">est. annual savings (usd)</div>
+      <div class="metric-value">$4.06M</div>
+      <div class="metric-sub">120k wafers/yr · $2k/wafer</div>
+    </div>
+  </div>
+
+  <!-- Process line trace — dark instrument visual -->
+  <div class="pipeline-trace-dark">
+    <div class="ptd-eyebrow">section 01 — pipeline overview</div>
+    <div class="ptd-title">Process line · 5-phase wafer trace</div>
+    <svg class="ptd-svg" viewBox="0 0 700 282" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="ptGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%"   stop-color="#3D5A80"/>
+          <stop offset="70%"  stop-color="#5FA8E8"/>
+          <stop offset="100%" stop-color="#E8593C"/>
+        </linearGradient>
+        <filter id="ptGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- Ghost baseline -->
+      <line x1="75" y1="178" x2="595" y2="178" stroke="#1E2D45" stroke-width="1" stroke-dasharray="3,6"/>
+      <!-- Target annotation -->
+      <text x="690" y="18" text-anchor="end"
+            font-family="Inter,sans-serif" font-size="9" fill="#2A4A60">target pr-auc 0.40 — not reached</text>
+
+      <!-- Main curved trace -->
+      <path d="M75,178 C140,178 140,210 205,210 C270,210 270,178 335,178 C400,178 400,120 465,120 C530,120 530,80 595,80"
+            stroke="url(#ptGrad)" stroke-width="2" fill="none"/>
+
+      <!-- ── Nodes ── -->
+      <!-- P1 (0.180) -->
+      <circle cx="75"  cy="178" r="11" fill="#5B7A9E"/>
+      <!-- P2 (0.166) — dip -->
+      <circle cx="205" cy="210" r="11" fill="#5B7A9E"/>
+      <!-- P3 (0.180) — recovery -->
+      <circle cx="335" cy="178" r="11" fill="#6B92BC"/>
+      <!-- P4 (0.207) -->
+      <circle cx="465" cy="120" r="14" fill="#7DA8D8"/>
+      <!-- P4+ (0.227) — peak with glow -->
+      <circle cx="595" cy="80"  r="26" fill="none" stroke="#FF8B5C" stroke-width=".8" opacity=".18"/>
+      <circle cx="595" cy="80"  r="20" fill="#E8593C" filter="url(#ptGlow)"/>
+      <!-- P4+ inner ring -->
+      <circle cx="595" cy="80"  r="20" fill="none" stroke="#FF8B5C" stroke-width="1" opacity=".5"/>
+
+      <!-- ── Labels ── -->
+      <!-- P1 -->
+      <text x="75"  y="201" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9.5" font-weight="600" fill="#7DA8D8">PH · 1</text>
+      <text x="75"  y="213" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#5B7A9E">0.180</text>
+      <text x="75"  y="225" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8"   fill="#3D5A80">rc 0.000</text>
+
+      <!-- P2 -->
+      <text x="205" y="233" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9.5" font-weight="600" fill="#7DA8D8">PH · 2</text>
+      <text x="205" y="245" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#5B7A9E">0.166 <tspan fill="#E8593C">↓</tspan></text>
+      <text x="205" y="257" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8"   fill="#4ECFB0">rc 0.567 ↑</text>
+
+      <!-- P3 -->
+      <text x="335" y="201" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9.5" font-weight="600" fill="#7DA8D8">PH · 3</text>
+      <text x="335" y="213" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#5B7A9E">0.180 <tspan fill="#4ECFB0">↑</tspan></text>
+      <text x="335" y="225" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8"   fill="#E8593C">rc 0.346 ↓</text>
+
+      <!-- P4 -->
+      <text x="465" y="147" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="9.5" font-weight="600" fill="#8FC3EE">PH · 4</text>
+      <text x="465" y="159" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8.5" fill="#5B7A9E">0.207 <tspan fill="#4ECFB0">↑</tspan></text>
+      <text x="465" y="171" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8"   fill="#4ECFB0">rc 0.484 ↑</text>
+
+      <!-- P4+ -->
+      <text x="595" y="115" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-size="10" font-weight="700" fill="#FF8B5C">PH · 4+</text>
+      <text x="595" y="128" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9"   fill="#E8593C">0.227 ↑ best</text>
+      <text x="595" y="141" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8"   fill="#4ECFB0">rc 0.558 ↑</text>
+
+      <!-- Phase descriptions (bottom row) -->
+      <text x="75"  y="270" text-anchor="middle" font-family="Inter,sans-serif" font-size="7.5" fill="#2A4A60">Baseline RF</text>
+      <text x="205" y="270" text-anchor="middle" font-family="Inter,sans-serif" font-size="7.5" fill="#2A4A60">SMOTE+RUS</text>
+      <text x="335" y="270" text-anchor="middle" font-family="Inter,sans-serif" font-size="7.5" fill="#2A4A60">+Anomaly IF/LOF</text>
+      <text x="465" y="270" text-anchor="middle" font-family="Inter,sans-serif" font-size="7.5" fill="#2A4A60">XGB Default</text>
+      <text x="595" y="270" text-anchor="middle" font-family="Inter,sans-serif" font-size="7.5" fill="#3D5A80">XGB + Optuna</text>
+    </svg>
+  </div>
+
+  <!-- Phase Evolution Plotly chart -->
+  <div class="chart-wrap" id="phaseEvolutionChart" style="height:340px"></div>
+</div>
+
+<hr class="page-divider">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 2 — Root-Cause Insight
+══════════════════════════════════════════════════════════════════════════════ -->
+<div class="section" id="insight">
+  <div class="section-header">
+    <div class="section-eyebrow">section 02 — root-cause analysis</div>
+    <h2 class="section-heading">SHAP × Statistical Cross-Validation</h2>
+    <p style="margin-top:.75rem;font-size:.8rem;color:var(--muted);line-height:1.7;max-width:700px;">
+      XGBoost 모델 기반 SHAP과 단변량 t-검정, 두 독립적 방법이 동시에 지목한 센서만을
+      high-confidence root cause로 채택합니다. 방법론 간 수렴을 요구함으로써
+      단일 분석의 편향을 배제하고, 실제 공정 개입이 가능한 재현 가능한 불량인자를 도출합니다.
+    </p>
+  </div>
+
+  <!-- 3-group flat comparison -->
+  <div class="group-row">
+    <div class="group-card">
+      <div class="group-marker-row">
+        <div class="group-marker" style="background:#1428A0"></div>
+        <div class="group-marker-label" style="color:#1428A0">High-Confidence</div>
+      </div>
+      <div class="group-count" style="color:#1428A0">6</div>
+      <div class="group-title">SHAP ∩ t-test Root Causes</div>
+      <div class="group-desc">두 독립적 방법이 수렴한 핵심 불량인자. XGBoost 모델 기반 중요도와 단변량 통계 검정이 모두 유의한 센서.</div>
+      <div class="sensor-list">
+        <span class="sensor-tag" style="border-color:#3B50C0;color:#1428A0">sensor_60 #1</span>
+        <span class="sensor-tag">sensor_104</span>
+        <span class="sensor-tag">sensor_122</span>
+        <span class="sensor-tag">sensor_131</span>
+        <span class="sensor-tag">sensor_130</span>
+        <span class="sensor-tag">sensor_576</span>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-marker-row">
+        <div class="group-marker" style="background:#C23B3B"></div>
+        <div class="group-marker-label" style="color:#C23B3B">SHAP-Only</div>
+      </div>
+      <div class="group-count" style="color:#C23B3B">14</div>
+      <div class="group-title">Model-Detected Interactions</div>
+      <div class="group-desc">단변량 t-검정 비유의(p &gt; 0.05)이나 XGBoost가 강하게 활용. 공정 변수 간 비선형 상호작용 효과.</div>
+      <div class="sensor-list" id="shap-only-list">
+        <span class="sensor-tag">sensor_288</span>
+        <span class="sensor-tag">sensor_103</span>
+        <span class="sensor-tag">sensor_34</span>
+        <span class="sensor-tag">sensor_133</span>
+        <span class="sensor-tag sensor-hidden">sensor_489</span>
+        <span class="sensor-tag sensor-hidden">sensor_22</span>
+        <span class="sensor-tag sensor-hidden">sensor_424</span>
+        <span class="sensor-tag sensor-hidden">sensor_411</span>
+        <span class="sensor-tag sensor-hidden">sensor_174</span>
+        <span class="sensor-tag sensor-hidden">sensor_248</span>
+        <span class="sensor-tag sensor-hidden">sensor_418</span>
+        <span class="sensor-tag sensor-hidden">sensor_292</span>
+        <span class="sensor-tag sensor-hidden">sensor_132</span>
+        <span class="sensor-tag sensor-hidden">sensor_572</span>
+        <button class="expand-btn" onclick="toggleSensors('shap-only-list', this)" data-count="10">+10 more</button>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-marker-row">
+        <div class="group-marker" style="background:#2D7D5A"></div>
+        <div class="group-marker-label" style="color:#2D7D5A">Stat-Only</div>
+      </div>
+      <div class="group-count" style="color:#2D7D5A">14</div>
+      <div class="group-title">Statistically Significant</div>
+      <div class="group-desc">t-검정 유의(p &lt; 0.05)이나 XGBoost가 활용하지 않음. 고신뢰 피처와 중복 정보(redundancy).</div>
+      <div class="sensor-list" id="stat-only-list">
+        <span class="sensor-tag">sensor_113</span>
+        <span class="sensor-tag">sensor_123</span>
+        <span class="sensor-tag">sensor_125</span>
+        <span class="sensor-tag sensor-hidden">sensor_126</span>
+        <span class="sensor-tag sensor-hidden">sensor_128</span>
+        <span class="sensor-tag sensor-hidden">sensor_156</span>
+        <span class="sensor-tag sensor-hidden">sensor_181</span>
+        <span class="sensor-tag sensor-hidden">sensor_29</span>
+        <span class="sensor-tag sensor-hidden">sensor_317</span>
+        <span class="sensor-tag sensor-hidden">sensor_429</span>
+        <span class="sensor-tag sensor-hidden">sensor_453</span>
+        <span class="sensor-tag sensor-hidden">sensor_511</span>
+        <span class="sensor-tag sensor-hidden">sensor_57</span>
+        <span class="sensor-tag sensor-hidden">sensor_574</span>
+        <button class="expand-btn" onclick="toggleSensors('stat-only-list', this)" data-count="11">+11 more</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wafer Root-Cause Map -->
+  <div class="wafer-block">
+    <div class="wafer-eyebrow-dark">section 02 — root-cause map</div>
+    <div class="wafer-title">Wafer-level sensor topology</div>
+    <div class="wafer-sub">SHAP ∩ t-test 교차 검증 · 6개 high-confidence 불량인자 · 원 크기 ∝ mean |SHAP|</div>
+
+    <div class="wafer-layout">
+      <!-- SVG wafer -->
+      <div class="wafer-svg-wrap">
+        <svg class="wafer-svg" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="wfBg" cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stop-color="#1A2942"/>
+              <stop offset="55%"  stop-color="#10182A"/>
+              <stop offset="100%" stop-color="#0B1220"/>
+            </radialGradient>
+            <radialGradient id="gDom" cx="38%" cy="35%" r="65%">
+              <stop offset="0%"   stop-color="#FF8B5C"/>
+              <stop offset="100%" stop-color="#C23B3B"/>
+            </radialGradient>
+            <radialGradient id="gHigh" cx="38%" cy="35%" r="65%">
+              <stop offset="0%"   stop-color="#5FA8E8"/>
+              <stop offset="100%" stop-color="#2E6FB0"/>
+            </radialGradient>
+            <radialGradient id="gMod" cx="38%" cy="35%" r="65%">
+              <stop offset="0%"   stop-color="#4ECFB0"/>
+              <stop offset="100%" stop-color="#2A9883"/>
+            </radialGradient>
+            <clipPath id="wfCircle">
+              <circle cx="210" cy="210" r="164"/>
+            </clipPath>
+            <clipPath id="clip104"><circle cx="278" cy="138" r="28"/></clipPath>
+            <clipPath id="clip122"><circle cx="278" cy="272" r="27"/></clipPath>
+          </defs>
+
+          <!-- Wafer base -->
+          <circle cx="210" cy="210" r="165" fill="url(#wfBg)" stroke="#3D5A80" stroke-width="1.2"/>
+
+          <!-- Concentric grid + crosshairs (clipped to wafer) -->
+          <g clip-path="url(#wfCircle)">
+            <circle cx="210" cy="210" r="62"  fill="none" stroke="#1E3050" stroke-width=".8" stroke-dasharray="2,5"/>
+            <circle cx="210" cy="210" r="118" fill="none" stroke="#1E3050" stroke-width=".8" stroke-dasharray="2,5"/>
+            <line x1="45"  y1="210" x2="375" y2="210" stroke="#1E3050" stroke-width=".7"/>
+            <line x1="210" y1="45"  x2="210" y2="375" stroke="#1E3050" stroke-width=".7"/>
+          </g>
+
+          <!-- Flat notch at bottom -->
+          <path d="M200,374.5 A10,8 0 0,1 220,374.5" fill="#0B1220" stroke="#3D5A80" stroke-width="1"/>
+
+          <!-- ── sensor_60 · dominant (coral) cx=165 cy=195 r=46 ── -->
+          <circle cx="165" cy="195" r="54" fill="none" stroke="#FF6B3B" stroke-width=".7" opacity=".18"/>
+          <circle cx="165" cy="195" r="46" fill="url(#gDom)" class="wf-sensor"
+            data-sensor="sensor_60" data-shap="0.8105" data-pv="&lt;0.001"/>
+          <text x="165" y="191" text-anchor="middle" pointer-events="none"
+                font-family="JetBrains Mono,monospace" font-size="12" fill="#FFF" font-weight="600">sensor_60</text>
+          <text x="165" y="205" text-anchor="middle" pointer-events="none"
+                font-family="JetBrains Mono,monospace" font-size="9.5" fill="rgba(255,255,255,.8)">0.8105</text>
+
+          <!-- ── sensor_104 · high (blue) cx=278 cy=138 r=29 ── -->
+          <circle cx="278" cy="138" r="29" fill="url(#gHigh)" class="wf-sensor"
+            data-sensor="sensor_104" data-shap="0.3334" data-pv="0.003"/>
+          <g clip-path="url(#clip104)" pointer-events="none">
+            <text x="278" y="135" text-anchor="middle"
+                  font-family="JetBrains Mono,monospace" font-size="9" fill="#FFF">sensor_104</text>
+            <text x="278" y="147" text-anchor="middle"
+                  font-family="JetBrains Mono,monospace" font-size="8.5" fill="rgba(255,255,255,.8)">0.3334</text>
+          </g>
+
+          <!-- ── sensor_122 · high (blue) cx=278 cy=272 r=28 ── -->
+          <circle cx="278" cy="272" r="28" fill="url(#gHigh)" class="wf-sensor"
+            data-sensor="sensor_122" data-shap="0.3114" data-pv="0.008"/>
+          <g clip-path="url(#clip122)" pointer-events="none">
+            <text x="278" y="269" text-anchor="middle"
+                  font-family="JetBrains Mono,monospace" font-size="9" fill="#FFF">sensor_122</text>
+            <text x="278" y="281" text-anchor="middle"
+                  font-family="JetBrains Mono,monospace" font-size="8.5" fill="rgba(255,255,255,.8)">0.3114</text>
+          </g>
+
+          <!-- ── sensor_131 · moderate (teal) cx=133 cy=270 r=24 ── leader → left -->
+          <circle cx="133" cy="270" r="24" fill="url(#gMod)" class="wf-sensor"
+            data-sensor="sensor_131" data-shap="0.2602" data-pv="0.019"/>
+          <text x="133" y="274" text-anchor="middle" pointer-events="none"
+                font-family="JetBrains Mono,monospace" font-size="8.5" fill="#FFF">0.2602</text>
+          <line x1="109" y1="270" x2="56" y2="270" stroke="#2A4A60" stroke-width=".8"/>
+          <text x="54" y="273" text-anchor="end" pointer-events="none"
+                font-family="JetBrains Mono,monospace" font-size="8.5" fill="#4ECFB0">sensor_131</text>
+
+          <!-- ── sensor_130 · moderate (teal) cx=218 cy=318 r=23 ── leader → down -->
+          <circle cx="218" cy="318" r="23" fill="url(#gMod)" class="wf-sensor"
+            data-sensor="sensor_130" data-shap="0.2153" data-pv="0.031"/>
+          <text x="218" y="322" text-anchor="middle" pointer-events="none"
+                font-family="JetBrains Mono,monospace" font-size="8.5" fill="#FFF">0.2153</text>
+          <line x1="218" y1="341" x2="218" y2="385" stroke="#2A4A60" stroke-width=".8"/>
+          <text x="218" y="399" text-anchor="middle" pointer-events="none"
+                font-family="JetBrains Mono,monospace" font-size="8.5" fill="#4ECFB0">sensor_130</text>
+
+          <!-- ── sensor_576 · moderate (teal) cx=188 cy=112 r=23 ── leader → upper-left -->
+          <circle cx="188" cy="112" r="23" fill="url(#gMod)" class="wf-sensor"
+            data-sensor="sensor_576" data-shap="0.2132" data-pv="0.042"/>
+          <text x="188" y="116" text-anchor="middle" pointer-events="none"
+                font-family="JetBrains Mono,monospace" font-size="8.5" fill="#FFF">0.2132</text>
+          <line x1="172" y1="96" x2="136" y2="58" stroke="#2A4A60" stroke-width=".8"/>
+          <text x="134" y="55" text-anchor="end" pointer-events="none"
+                font-family="JetBrains Mono,monospace" font-size="8.5" fill="#4ECFB0">sensor_576</text>
+        </svg>
+      </div>
+
+      <!-- Legend + caption -->
+      <div class="wafer-right">
+        <div>
+          <div class="wafer-legend-heading">legend</div>
+          <div class="wafer-legend-item">
+            <div class="wafer-legend-dot" style="background:linear-gradient(135deg,#FF8B5C,#C23B3B)"></div>
+            <div class="wafer-legend-lbl">
+              <strong>Dominant Factor</strong>
+              sensor_60 · mean |SHAP| 0.81
+            </div>
+          </div>
+          <div class="wafer-legend-item">
+            <div class="wafer-legend-dot" style="background:linear-gradient(135deg,#5FA8E8,#2E6FB0)"></div>
+            <div class="wafer-legend-lbl">
+              <strong>High Contribution</strong>
+              sensor_104, 122 · |SHAP| 0.31–0.33
+            </div>
+          </div>
+          <div class="wafer-legend-item">
+            <div class="wafer-legend-dot" style="background:linear-gradient(135deg,#4ECFB0,#2A9883)"></div>
+            <div class="wafer-legend-lbl">
+              <strong>Moderate Contribution</strong>
+              sensor_131, 130, 576 · |SHAP| 0.21–0.26
+            </div>
+          </div>
+        </div>
+        <div class="wafer-caption">
+          원 크기 ∝ mean |SHAP value|<br>
+          전체 6개 센서 = SHAP ∩ t-test 동시 유의<br>
+          위치는 위상 토폴로지를 시각화한 것이며<br>
+          실제 웨이퍼 좌표와 무관합니다
+        </div>
+      </div>
+    </div>
+    <div id="wfTip"></div>
+  </div>
+
+  <!-- SHAP importance chart -->
+  <div class="chart-wrap" id="shapImportanceChart" style="height:430px"></div>
+</div>
+
+<hr class="page-divider">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 3 — Interactive Prediction
+══════════════════════════════════════════════════════════════════════════════ -->
+<div class="section" id="predict">
+  <div class="section-header">
+    <div class="section-eyebrow">section 03 — real-time inference</div>
+    <h2 class="section-heading">Interactive Prediction · ONNX Runtime Web</h2>
+  </div>
+  <p style="font-size:.8rem;color:var(--muted);line-height:1.7;margin-bottom:1.75rem;max-width:660px;">
+    고신뢰 불량인자 6개의 센서값을 조작하면 XGBoost ONNX 모델이 브라우저에서 실시간으로 Fail 확률을 추론합니다.
+    나머지 74개 피처는 학습 데이터 median 값으로 고정됩니다.
+  </p>
+
+  <div class="interactive-grid">
+    <div class="sliders-panel">
+      <div class="panel-heading">Sensor Control Panel — high-confidence features only</div>
+      <div id="slidersContainer"></div>
+      <button class="reset-btn" onclick="resetSliders()">Reset to Median</button>
+    </div>
+
+    <div class="results-panel">
+      <div class="gauge-card" id="probCard">
+        <div class="gauge-layout">
+          <!-- Left: wafer gauge -->
+          <div class="gauge-left">
+            <div class="gauge-status-row">
+              <div class="gauge-dot" id="gaugeDot"></div>
+              <span class="gauge-status-txt" id="gaugeStatus">initializing</span>
+            </div>
+            <svg class="gauge-svg-el" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <filter id="gGlow" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="5" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <radialGradient id="gaugeBg2" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%"   stop-color="#1A2942"/>
+                  <stop offset="100%" stop-color="#0B1220"/>
+                </radialGradient>
+                <clipPath id="gaugeClip2">
+                  <circle cx="110" cy="110" r="99"/>
+                </clipPath>
+              </defs>
+              <!-- Dynamic glow ring -->
+              <circle id="gaugeGlowRing" cx="110" cy="110" r="103" fill="none"
+                stroke="#4ECFB0" stroke-width="1.5" opacity=".3" filter="url(#gGlow)"/>
+              <!-- Wafer base -->
+              <circle cx="110" cy="110" r="100" fill="url(#gaugeBg2)" stroke="#3D5A80" stroke-width="1"/>
+              <!-- Grid -->
+              <g clip-path="url(#gaugeClip2)">
+                <circle cx="110" cy="110" r="40"  fill="none" stroke="#1E3050" stroke-width=".7" stroke-dasharray="2,4"/>
+                <circle cx="110" cy="110" r="72" fill="none" stroke="#1E3050" stroke-width=".7" stroke-dasharray="2,4"/>
+                <line x1="10"  y1="110" x2="210" y2="110" stroke="#1E3050" stroke-width=".6"/>
+                <line x1="110" y1="10"  x2="110" y2="210" stroke="#1E3050" stroke-width=".6"/>
+              </g>
+              <!-- Notch -->
+              <path d="M103,209 A7,5 0 0,1 117,209" fill="#0B1220" stroke="#3D5A80" stroke-width="1"/>
+              <!-- Center probability -->
+              <text x="110" y="101" text-anchor="middle" id="gaugeProbVal"
+                    font-family="JetBrains Mono,monospace" font-size="32" fill="#EDF2F9" font-weight="500">—</text>
+              <text x="110" y="121" text-anchor="middle"
+                    font-family="Inter,sans-serif" font-size="9" fill="#3D5A80" letter-spacing=".06em">FAIL PROB</text>
+            </svg>
+          </div>
+          <!-- Right: status badge + track + driving sensor -->
+          <div class="gauge-right">
+            <div class="gauge-badge">
+              <div class="gauge-badge-dot" id="gaugeBadgeDot"></div>
+              <span class="gauge-badge-txt" id="gaugeBadgeTxt">adjust sliders to run inference</span>
+            </div>
+            <div>
+              <div class="gauge-track-eyebrow">fail probability range</div>
+              <div class="gauge-track">
+                <div class="gauge-track-marker" id="gaugeMarker" style="left:0%"></div>
+              </div>
+              <div class="gauge-track-labels">
+                <span>0%</span><span>30%</span><span>60%</span><span>100%</span>
+              </div>
+            </div>
+            <div class="driving-sensor-card">
+              <div class="driving-sensor-label">most influential factor (this scenario)</div>
+              <div class="driving-sensor-info">
+                <div class="ds-glow-dot" id="dsSensorGlow"></div>
+                <div>
+                  <div class="ds-name" id="dsSensorName">—</div>
+                  <div class="ds-shap" id="dsSensorShap">SHAP: —</div>
+                  <div class="ds-dir"  id="dsSensorDir">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="shap-panel">
+        <div class="shap-panel-heading">top contributing factors (shap) · nearest precomputed scenario</div>
+        <div class="shap-caption">
+          80개 피처 전체에 대한 시나리오별 SHAP 기여도.
+          슬라이더 6개 외 변수는 학습 데이터 median 고정값 기준이며,
+          Top-20 외 센서도 해당 시나리오에서 유의한 기여를 가질 수 있습니다.
+        </div>
+        <div id="shapChart" style="height:270px"></div>
+        <div id="shapNearestLabel" style="
+          font-family:'JetBrains Mono',monospace;
+          font-size:.63rem; color:#9CA3AF;
+          text-align:center;
+          padding:.35rem 0 .1rem;
+          border-top:1px solid var(--border);
+          margin-top:.1rem;
+        "></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div>
+    <div class="footer-name">황윤 (Yoon Hwang)</div>
+    <div class="footer-affil">University of Wisconsin-Madison · Data Science &amp; Economics &amp; Information Science</div>
+  </div>
+  <div class="footer-links">
+    <a href="mailto:yoondbs3@gmail.com">yoondbs3@gmail.com</a>
+    <a href="https://github.com/yhwang55" target="_blank">github.com/yhwang55</a>
+    <a href="https://linkedin.com/in/yoon-hwang" target="_blank">linkedin</a>
+    <a href="./technical_report.pdf" target="_blank">technical report (pdf)</a>
+  </div>
+  <div class="footer-meta">
+    model: XGBoost 2.1.4 + Optuna 4.9.0 (50 trials) &nbsp;&middot;&nbsp;
+    dataset: UCI SECOM 1,567×590, 6.64% fail rate &nbsp;&middot;&nbsp;
+    inference: ONNX Runtime Web 1.18.0 (wasm)
+  </div>
+</footer>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let meta = null, scenarios = null, ortSession = null;
+const HIGH_CONF = ["sensor_60","sensor_104","sensor_122","sensor_131","sensor_130","sensor_576"];
+let sliderValues = {};
+
+// Shared Plotly style tokens
+const PLT_FONT = {
+  family: 'Inter, -apple-system, sans-serif',
+  color: '#1A1D29', size: 12,
+};
+const PLT_GRID_AXIS = {
+  gridcolor: '#E2E5EA', gridwidth: 1,
+  linecolor: '#E2E5EA', linewidth: 1,
+  zeroline: false,
+  tickfont: { family: 'JetBrains Mono, monospace', size: 10, color: '#6B7280' },
+  titlefont: { family: 'Inter, sans-serif', size: 11, color: '#9CA3AF' },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const [metaRes, scenRes] = await Promise.all([
+      fetch('./model_meta.json'),
+      fetch('./precomputed_scenarios.json'),
+    ]);
+    meta      = await metaRes.json();
+    scenarios = await scenRes.json();
+
+    ort.env.wasm.wasmPaths =
+      'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+    ortSession = await ort.InferenceSession.create('./model.onnx', {
+      executionProviders: ['wasm'],
+    });
+
+    buildPhaseChart();
+    buildShapImportanceChart();
+    buildSliders();
+
+    document.getElementById('loadingOverlay').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loadingOverlay').innerHTML =
+      `<div class="loading-text" style="color:#C23B3B">error: ${e.message}</div>`;
+    console.error(e);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 1: Phase Evolution chart
+// ─────────────────────────────────────────────────────────────────────────────
+function buildPhaseChart() {
+  const xL = ['Ph1 · Baseline','Ph2 · SMOTE+RUS','Ph3 · +Anomaly',
+               'Ph4 · XGB Default','Ph4+ · XGB Optuna'];
+  const praucs  = [0.180, 0.166, 0.180, 0.207, 0.227];
+  const recalls = [0.000, 0.567, 0.346, 0.484, 0.558];
+
+  const trPR = {
+    x: xL, y: praucs, name: 'PR-AUC',
+    type: 'scatter', mode: 'lines+markers',
+    line: { color: '#1428A0', width: 1.8 },
+    marker: { size: 7, color: '#1428A0', symbol: 'square', line: { width: 0 } },
+    yaxis: 'y',
+    hovertemplate: '<b>%{x}</b><br>PR-AUC: <b>%{y:.3f}</b><extra></extra>',
+  };
+  const trTarget = {
+    x: xL, y: [0.40,0.40,0.40,0.40,0.40], name: 'PR-AUC target (0.40)',
+    type: 'scatter', mode: 'lines',
+    line: { color: '#1428A0', width: 1, dash: 'dot' },
+    yaxis: 'y', hoverinfo: 'none',
+    marker: { opacity: 0 },
+  };
+  const trRec = {
+    x: xL, y: recalls, name: 'Recall (Fail)',
+    type: 'scatter', mode: 'lines+markers',
+    line: { color: '#C23B3B', width: 1.8 },
+    marker: { size: 7, color: '#C23B3B', symbol: 'circle', line: { width: 0 } },
+    yaxis: 'y2',
+    hovertemplate: '<b>%{x}</b><br>Recall: <b>%{y:.3f}</b><extra></extra>',
+  };
+
+  Plotly.newPlot('phaseEvolutionChart', [trPR, trTarget, trRec], {
+    title: {
+      text: 'PR-AUC & Recall (Fail) across Pipeline Phases',
+      font: { family: 'Space Grotesk, sans-serif', size: 13.5, color: '#1A1D29' },
+      pad: { t: 4 },
+    },
+    yaxis: {
+      ...PLT_GRID_AXIS, title: 'PR-AUC', range: [0, 0.50], tickformat: '.2f',
+      titlefont: { ...PLT_GRID_AXIS.titlefont, color: '#1428A0' },
+      tickfont:  { ...PLT_GRID_AXIS.tickfont,  color: '#1428A0' },
+    },
+    yaxis2: {
+      ...PLT_GRID_AXIS,
+      title: 'Recall (Fail)', range: [0, 0.70],
+      overlaying: 'y', side: 'right',
+      tickformat: '.2f', showgrid: false,
+      titlefont: { ...PLT_GRID_AXIS.titlefont, color: '#C23B3B' },
+      tickfont:  { ...PLT_GRID_AXIS.tickfont,  color: '#C23B3B' },
+    },
+    xaxis: {
+      ...PLT_GRID_AXIS,
+      tickfont: { family: 'Inter, sans-serif', size: 11, color: '#6B7280' },
+      showgrid: false,
+    },
+    legend: {
+      orientation: 'h', y: -0.18,
+      font: { family: 'Inter, sans-serif', size: 11, color: '#6B7280' },
+      bgcolor: 'rgba(0,0,0,0)',
+    },
+    margin: { t: 48, r: 60, b: 80, l: 54 },
+    paper_bgcolor: '#FFFFFF', plot_bgcolor: '#FFFFFF',
+    font: PLT_FONT,
+    annotations: [
+      {
+        x: 4, y: 0.227, xref: 'x', yref: 'y', xanchor: 'right',
+        text: 'Best PR-AUC: 0.227',
+        showarrow: true, arrowhead: 0, arrowcolor: '#CBD5E1',
+        ax: -38, ay: -26,
+        font: { family: 'JetBrains Mono, monospace', size: 9.5, color: '#1428A0' },
+        bgcolor: '#FFFFFF', borderpad: 3, bordercolor: '#E2E5EA', borderwidth: 1,
+      },
+      {
+        x: 1, y: 0.567, xref: 'x', yref: 'y2', xanchor: 'left',
+        text: 'Best Recall: 0.567',
+        showarrow: true, arrowhead: 0, arrowcolor: '#CBD5E1',
+        ax: 32, ay: -22,
+        font: { family: 'JetBrains Mono, monospace', size: 9.5, color: '#C23B3B' },
+        bgcolor: '#FFFFFF', borderpad: 3, bordercolor: '#E2E5EA', borderwidth: 1,
+      },
+    ],
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 2: SHAP importance — blue monochrome gradient
+// ─────────────────────────────────────────────────────────────────────────────
+function blueGrad(t) {
+  // t in [0,1]: 0 = light (#C5D8FF), 1 = dark (#0A1A78)
+  const r = Math.round(197 + (10  - 197) * t);
+  const g = Math.round(216 + (26  - 216) * t);
+  const b = Math.round(255 + (120 - 255) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function buildShapImportanceChart() {
+  const features = [
+    'sensor_60','sensor_288','sensor_103','sensor_34','sensor_133',
+    'sensor_104','sensor_489','sensor_22','sensor_122','sensor_424',
+    'sensor_411','sensor_131','sensor_174','sensor_248','sensor_418',
+    'sensor_292','sensor_132','sensor_572','sensor_130','sensor_576',
+  ];
+  const shapVals = [
+    0.8105,0.4325,0.4016,0.3996,0.3606,
+    0.3334,0.3243,0.3223,0.3114,0.2965,
+    0.2757,0.2602,0.2587,0.2509,0.2346,
+    0.2284,0.2262,0.2193,0.2153,0.2132,
+  ];
+  const minV = 0.2132, maxV = 0.8105;
+  const colors = shapVals.map(v => blueGrad((v - minV) / (maxV - minV)));
+  const yLabels = features.map(f => HIGH_CONF.includes(f) ? f + ' ◆' : f);
+
+  const rev = a => [...a].reverse();
+  Plotly.newPlot('shapImportanceChart', [{
+    type: 'bar', orientation: 'h',
+    x: rev(shapVals), y: rev(yLabels),
+    marker: { color: rev(colors) },
+    hovertemplate: '<b>%{y}</b><br>Mean |SHAP|: <b>%{x:.4f}</b><extra></extra>',
+  }], {
+    title: {
+      text: 'SHAP Feature Importance — Top-20  (◆ = High-Confidence Root Cause, darker = higher importance)',
+      font: { family: 'Space Grotesk, sans-serif', size: 13, color: '#1A1D29' },
+    },
+    xaxis: { ...PLT_GRID_AXIS, title: 'Mean |SHAP Value|' },
+    yaxis: {
+      ...PLT_GRID_AXIS,
+      tickfont: { family: 'JetBrains Mono, monospace', size: 10, color: '#1A1D29' },
+      automargin: true,
+    },
+    margin: { t: 48, r: 20, b: 50, l: 20 },
+    paper_bgcolor: '#FFFFFF', plot_bgcolor: '#FFFFFF',
+    font: PLT_FONT,
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 3: Sliders
+// ─────────────────────────────────────────────────────────────────────────────
+function buildSliders() {
+  const container = document.getElementById('slidersContainer');
+  container.innerHTML = '';
+
+  HIGH_CONF.forEach(feat => {
+    const s = scenarios[feat].range;
+    sliderValues[feat] = s.median;
+
+    const initPct = ((s.median - s.q05) / (s.q95 - s.q05) * 100).toFixed(0);
+
+    const div = document.createElement('div');
+    div.className = 'slider-row';
+    div.innerHTML = `
+      <div class="slider-meta">
+        <span class="slider-feat">${feat}</span>
+        <span>
+          <span class="slider-val" id="val_${feat}">${s.median.toFixed(4)}</span>
+          <span class="slider-pct" id="pct_${feat}">${initPct}%</span>
+        </span>
+      </div>
+      <input type="range" id="sl_${feat}"
+        min="${s.q05}" max="${s.q95}"
+        step="${((s.q95 - s.q05) / 100).toFixed(6)}"
+        value="${s.median}"
+        style="--pct:${initPct}%"
+        oninput="onSlider('${feat}', this.value, this)">
+      <div class="slider-ticks">
+        <span>q05: ${s.q05.toFixed(3)}</span>
+        <span>median: ${s.median.toFixed(3)}</span>
+        <span>q95: ${s.q95.toFixed(3)}</span>
+      </div>`;
+    container.appendChild(div);
+  });
+
+  runInference();
+}
+
+function resetSliders() {
+  HIGH_CONF.forEach(feat => {
+    const s = scenarios[feat].range;
+    sliderValues[feat] = s.median;
+    const el = document.getElementById(`sl_${feat}`);
+    el.value = s.median;
+    const pctNum = ((s.median - s.q05) / (s.q95 - s.q05) * 100).toFixed(0);
+    el.style.setProperty('--pct', pctNum + '%');
+    document.getElementById(`val_${feat}`).textContent = s.median.toFixed(4);
+    document.getElementById(`pct_${feat}`).textContent = pctNum + '%';
+  });
+  runInference();
+}
+
+function onSlider(feat, val, el) {
+  const v = parseFloat(val);
+  sliderValues[feat] = v;
+  document.getElementById(`val_${feat}`).textContent = v.toFixed(4);
+  const pctNum = ((v - parseFloat(el.min)) / (parseFloat(el.max) - parseFloat(el.min)) * 100);
+  const pctStr = pctNum.toFixed(0) + '%';
+  el.style.setProperty('--pct', pctStr);
+  document.getElementById(`pct_${feat}`).textContent = pctStr;
+  runInference();
+}
+
+function toggleSensors(listId, btn) {
+  const hidden = document.querySelectorAll(`#${listId} .sensor-hidden`);
+  const isExpanded = btn.dataset.expanded === 'true';
+  hidden.forEach(el => { el.style.display = isExpanded ? 'none' : 'inline'; });
+  const count = btn.dataset.count;
+  btn.textContent = isExpanded ? `+${count} more` : 'show less';
+  btn.dataset.expanded = String(!isExpanded);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONNX Inference
+// ─────────────────────────────────────────────────────────────────────────────
+async function runInference() {
+  if (!ortSession || !meta) return;
+
+  const feats  = meta.feature_names;
+  const means  = meta.scaler_mean;
+  const scales = meta.scaler_scale;
+  const fstats = meta.feature_stats;
+
+  const inputArr = new Float32Array(feats.length);
+  feats.forEach((f, i) => {
+    const raw = (sliderValues[f] !== undefined) ? sliderValues[f] : fstats[f].median;
+    inputArr[i] = (raw - means[i]) / scales[i];
+  });
+
+  const tensor = new ort.Tensor('float32', inputArr, [1, feats.length]);
+  const result = await ortSession.run({ float_input: tensor });
+  const failP  = result['probabilities'].data[1];
+
+  updateProbDisplay(failP);
+  updateShapChart();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Status tier — single source of truth for thresholds and labels
+// ─────────────────────────────────────────────────────────────────────────────
+function getStatusTier(p) {
+  if (p < 0.30) return { color: '#4ECFB0', label: 'SAFE',     badge: 'safe — low risk · nominal range' };
+  if (p < 0.60) return { color: '#F5A623', label: 'CAUTION',  badge: 'caution — monitor closely' };
+  return             { color: '#E8593C', label: 'ELEVATED', badge: 'elevated — yield defect predicted' };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Probability display
+// ─────────────────────────────────────────────────────────────────────────────
+function updateProbDisplay(p) {
+  const pct = (p * 100).toFixed(1);
+  const { color, label: statusLabel, badge: badgeLabel } = getStatusTier(p);
+
+  // Wafer gauge
+  const probTxt  = document.getElementById('gaugeProbVal');
+  const glowRing = document.getElementById('gaugeGlowRing');
+  if (probTxt)  { probTxt.textContent = pct + '%'; probTxt.setAttribute('fill', color); }
+  if (glowRing) glowRing.setAttribute('stroke', color);
+
+  // Top status row
+  const dot    = document.getElementById('gaugeDot');
+  const status = document.getElementById('gaugeStatus');
+  if (dot)    dot.style.background = color;
+  if (status) { status.textContent = statusLabel; status.style.color = color; }
+
+  // Badge
+  const bdot = document.getElementById('gaugeBadgeDot');
+  const btxt = document.getElementById('gaugeBadgeTxt');
+  if (bdot) bdot.style.background = color;
+  if (btxt) { btxt.textContent = badgeLabel; btxt.style.color = color; }
+
+  // Track marker
+  const marker = document.getElementById('gaugeMarker');
+  if (marker) marker.style.left = Math.min(parseFloat(pct), 100) + '%';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Interactive SHAP bar
+// ─────────────────────────────────────────────────────────────────────────────
+function updateShapChart() {
+  let maxDev = -1, primaryFeat = HIGH_CONF[0];
+  HIGH_CONF.forEach(feat => {
+    const s = scenarios[feat].range;
+    const range = s.q95 - s.q05;
+    if (range < 1e-9) return;
+    const dev = Math.abs(sliderValues[feat] - s.median) / range;
+    if (dev > maxDev) { maxDev = dev; primaryFeat = feat; }
+  });
+
+  const featSc = scenarios[primaryFeat].scenarios;
+  let nearest = featSc[0], minDiff = Infinity;
+  featSc.forEach(sc => {
+    const d = Math.abs(sc.sensor_value - sliderValues[primaryFeat]);
+    if (d < minDiff) { minDiff = d; nearest = sc; }
+  });
+
+  const entries = Object.entries(nearest.shap_top10).sort((a,b) => a[1] - b[1]);
+  const feats   = entries.map(e => e[0]);
+  const vals    = entries.map(e => e[1]);
+  const maxAbs  = Math.max(...vals.map(Math.abs));
+  const colors  = vals.map(v => {
+    const t = Math.abs(v) / maxAbs;
+    return v > 0
+      ? blueGrad(t * 0.9 + 0.1)             // blue: positive SHAP = Fail
+      : `rgb(${Math.round(160-t*40)},${Math.round(160-t*40)},${Math.round(165-t*40)})`; // gray: negative
+  });
+
+  Plotly.react('shapChart', [{
+    type: 'bar', orientation: 'h',
+    x: vals, y: feats,
+    marker: { color: colors },
+    hovertemplate: '<b>%{y}</b><br>SHAP: <b>%{x:.4f}</b><extra></extra>',
+  }], {
+    xaxis: {
+      ...PLT_GRID_AXIS, title: 'SHAP Value (blue → Fail risk, gray → Pass)',
+      zeroline: true, zerolinecolor: '#E2E5EA', zerolinewidth: 1,
+    },
+    yaxis: {
+      ...PLT_GRID_AXIS,
+      tickfont: { family: 'JetBrains Mono, monospace', size: 10, color: '#1A1D29' },
+      automargin: true,
+    },
+    margin: { t: 10, r: 16, b: 52, l: 16 },
+    paper_bgcolor: '#FFFFFF', plot_bgcolor: '#FFFFFF',
+    font: PLT_FONT,
+  }, { responsive: true, displayModeBar: false });
+
+  document.getElementById('shapNearestLabel').textContent =
+    `근사값 — nearest precomputed scenario · ${primaryFeat} sensor value = ${nearest.sensor_value.toFixed(4)}`;
+
+  // Driving sensor card
+  const dsShapVal = nearest.shap_top10[primaryFeat] ?? 0;
+  const dsColor   = dsShapVal > 0 ? '#E8593C' : '#4ECFB0';
+  const dsEl = {
+    glow: document.getElementById('dsSensorGlow'),
+    name: document.getElementById('dsSensorName'),
+    shap: document.getElementById('dsSensorShap'),
+    dir:  document.getElementById('dsSensorDir'),
+  };
+  if (dsEl.name) dsEl.name.textContent = primaryFeat;
+  if (dsEl.shap) dsEl.shap.textContent = 'SHAP: ' + dsShapVal.toFixed(4);
+  if (dsEl.dir)  {
+    dsEl.dir.textContent = dsShapVal > 0 ? 'pulling toward fail ↑' : 'pulling toward pass ↓';
+    dsEl.dir.style.color = dsColor;
+  }
+  if (dsEl.glow) {
+    dsEl.glow.style.background = dsColor;
+    dsEl.glow.style.boxShadow  = `0 0 7px ${dsColor}`;
+  }
+}
+
+// ── Wafer tooltip ─────────────────────────────────────────────────────────────
+function initWaferTooltip() {
+  const tip = document.getElementById('wfTip');
+  document.querySelectorAll('.wf-sensor').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      const d = el.dataset;
+      tip.innerHTML =
+        `<span style="color:#5FA8E8">${d.sensor}</span><br>` +
+        `SHAP: <strong style="color:#EDF2F9">${d.shap}</strong>&nbsp;&nbsp;` +
+        `p-value: <strong style="color:#4ECFB0">${d.pv}</strong>`;
+      tip.style.opacity = '1';
+    });
+    el.addEventListener('mousemove', e => {
+      tip.style.left = (e.clientX + 14) + 'px';
+      tip.style.top  = (e.clientY - 8)  + 'px';
+    });
+    el.addEventListener('mouseleave', () => { tip.style.opacity = '0'; });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => { init(); initWaferTooltip(); });
+</script>
+</body>
+</html>
