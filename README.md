@@ -1,5 +1,11 @@
 # Semiconductor Yield Prediction & Root-Cause Factor Identification
 
+<p align="center">
+  <a href="https://yhwang55.github.io/semiconductor-yield-prediction/" target="_blank">
+    <img src="https://img.shields.io/badge/🔬%20Live%20Dashboard-Open%20Interactive%20Demo-1428A0?style=for-the-badge&logoColor=white" alt="Live Dashboard" />
+  </a>
+</p>
+
 > 반도체 수율 **사전 예측** 및 **통계적 불량인자 규명** — UCI SECOM 데이터셋 기반 5단계 점진적 머신러닝 파이프라인
 
 ---
