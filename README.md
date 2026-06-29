@@ -6,7 +6,7 @@
   </a>
 </p>
 
-> 반도체 수율 **사전 예측** 및 **통계적 불량인자 규명** — UCI SECOM 데이터셋 기반 5단계 점진적 머신러닝 파이프라인
+> Semiconductor yield **predictive modeling** and **statistical root-cause factor identification** — a 5-phase incremental ML pipeline on the UCI SECOM dataset
 
 ---
 
@@ -36,11 +36,11 @@
 
 ## Project Overview
 
-반도체 제조 공정에서 불량 웨이퍼를 **공정 완료 후 검사하는 것이 아니라**, 공정 도중 수집된 센서 데이터만으로 **사전에 예측**하여 하류 공정 낭비를 차단하는 것이 이 프로젝트의 핵심 목표입니다. 동시에 "어떤 공정 변수가 불량에 기여하는가"를 통계적·모델 기반 방법으로 정량화하여 공정 엔지니어가 실제로 활용 가능한 **근본 원인 인사이트**를 제공합니다.
+The core goal of this project is to **predict** wafer failures **before** the process completes — using only in-process sensor data — to prevent waste in downstream stages. At the same time, it quantifies "which process variables contribute to defects" through statistical and model-based methods, providing **root-cause insights** that process engineers can act on.
 
-UCI SECOM 데이터셋은 실제 반도체 제조 라인에서 수집된 공개 벤치마크로, 1,567개 샘플과 590개 익명화 센서 변수, 6.64%의 불량률(1:14.1 클래스 불균형)을 포함합니다. 고차원 소표본(p ≫ n), 극심한 클래스 불균형, 약한 신호 대 노이즈 비율이라는 세 가지 도전이 공존하며, 이는 현실 반도체 팹 환경을 그대로 반영합니다.
+The UCI SECOM dataset is a public benchmark collected from a real semiconductor manufacturing line: 1,567 samples, 590 anonymized sensor features, and a 6.64% fail rate (1:14.1 class imbalance). Three challenges coexist — high dimensionality relative to sample size (p ≫ n), severe class imbalance, and a weak signal-to-noise ratio — mirroring real-world fab conditions.
 
-프로젝트는 EDA부터 SHAP 설명가능성까지 **5단계 점진적 파이프라인**으로 설계되어, 각 단계에서 추가되는 기술 요소의 성능 기여를 독립적으로 측정합니다. 데이터 누수 방지(`imblearn.Pipeline`), 시계열 CV 전략 실증 비교, SHAP × t-검정 교차검증을 통한 고신뢰 불량인자 도출이 핵심 방법론적 기여입니다.
+The project is structured as a **5-phase incremental pipeline** from EDA through SHAP explainability, independently measuring the performance contribution of each added technique. Key methodological contributions include data leakage prevention via `imblearn.Pipeline`, empirical comparison of CV strategies, and identification of high-confidence defect factors through SHAP × t-test cross-validation.
 
 ---
 
@@ -66,13 +66,13 @@ UCI SECOM 데이터셋은 실제 반도체 제조 라인에서 수집된 공개 
 
 ## Key Findings
 
-- **sensor_60 dominates**: SHAP Mean|SHAP|=0.8105 (1.87× runner-up). Cohen's d=0.591로 통계적 검정에서도 최고 효과 크기 — 두 독립적 방법이 동일한 피처로 수렴.
+- **sensor_60 dominates**: Mean |SHAP| = 0.8105 (1.87× the runner-up). Cohen's d = 0.591 — highest effect size in statistical testing as well. Two independent methods converge on the same feature.
 
-- **Feature selection > everything else**: `all_446 → top80_model` 전환만으로 PR-AUC +0.028 달성 — 이상점수 피처화(+0.014)의 2배. 노이즈 피처 82% 제거가 가장 강력한 단일 개입.
+- **Feature selection > everything else**: Switching `all_446 → top80_model` alone achieved PR-AUC +0.028 — twice the gain from anomaly score features (+0.014). Removing 82% of noisy features was the single most impactful intervention.
 
-- **Nonlinear interactions detected**: SHAP Top-20 중 14개(70%)가 단변량 t-검정에서 비유의(p > 0.05)한 SHAP-only 피처 — 단순 SPC 차트로 포착 불가능한 공정 변수 간 상호작용 효과가 존재함을 실증.
+- **Nonlinear interactions detected**: 14 of the SHAP Top-20 features (70%) were not significant in univariate t-test (p > 0.05), demonstrating nonlinear interaction effects between process variables that simple SPC charts cannot capture.
 
-- **Business impact estimated at ~$4.06M USD/year**: 연간 12만 웨이퍼 생산, $2,000/wafer, Recall=0.567, 45% 비용 절감률 가정 기준. 선단 공정(3nm-5nm) 적용 시 $10.15M-$30.44M 규모.
+- **Business impact estimated at ~$4.06M USD/year**: Assumes 120k wafers/year, $2,000/wafer, Recall = 0.567, and 45% cost recovery rate. Scales to $10.15M–$30.44M for leading-edge nodes (3nm–5nm).
 
 ---
 
@@ -80,13 +80,13 @@ UCI SECOM 데이터셋은 실제 반도체 제조 라인에서 수집된 공개 
 
 ![SHAP Beeswarm](reports/figures/23_p5_shap_beeswarm.png)
 
-*SHAP Beeswarm Plot — Top-20 features. sensor_60의 압도적 기여와 방향성(값이 높을수록 Fail 확률 상승)이 명확히 나타난다.*
+*SHAP Beeswarm Plot — Top-20 features. sensor_60's dominant contribution and directionality (higher values drive Fail probability up) are clearly visible.*
 
 ---
 
 ## Technical Report
 
-전체 실험 설계, 수식, 결과 분석, 한계 논의를 포함한 학술 형식 보고서:
+Full academic report covering experimental design, formulations, result analysis, and limitations:
 
 **[📄 reports/technical_report.pdf](reports/technical_report.pdf)**
 
@@ -162,7 +162,7 @@ All figures and result `.md` files are saved to `reports/` automatically.
 
 ## Author
 
-**황윤 (Yoon Hwang)**
+**Yoon Hwang**
 University of Wisconsin-Madison | Data Science & Economics & Information Science
 
 - Email: yoondbs3@gmail.com
