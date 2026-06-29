@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -801,9 +801,9 @@ footer {
     <div class="section-eyebrow">section 02 — root-cause analysis</div>
     <h2 class="section-heading">SHAP × Statistical Cross-Validation</h2>
     <p style="margin-top:.75rem;font-size:.8rem;color:var(--muted);line-height:1.7;max-width:700px;">
-      XGBoost 모델 기반 SHAP과 단변량 t-검정, 두 독립적 방법이 동시에 지목한 센서만을
-      high-confidence root cause로 채택합니다. 방법론 간 수렴을 요구함으로써
-      단일 분석의 편향을 배제하고, 실제 공정 개입이 가능한 재현 가능한 불량인자를 도출합니다.
+      Only sensors flagged simultaneously by two independent methods — XGBoost-based SHAP and univariate
+      t-test — are designated as high-confidence root causes. Requiring cross-method convergence eliminates
+      single-analysis bias and yields reproducible defect factors actionable for real process interventions.
     </p>
   </div>
 
@@ -816,7 +816,7 @@ footer {
       </div>
       <div class="group-count" style="color:#1428A0">6</div>
       <div class="group-title">SHAP ∩ t-test Root Causes</div>
-      <div class="group-desc">두 독립적 방법이 수렴한 핵심 불량인자. XGBoost 모델 기반 중요도와 단변량 통계 검정이 모두 유의한 센서.</div>
+      <div class="group-desc">Core defect factors where both independent methods converge. Sensors significant in both XGBoost model importance and univariate statistical testing.</div>
       <div class="sensor-list">
         <span class="sensor-tag" style="border-color:#3B50C0;color:#1428A0">sensor_60 #1</span>
         <span class="sensor-tag">sensor_104</span>
@@ -833,7 +833,7 @@ footer {
       </div>
       <div class="group-count" style="color:#C23B3B">14</div>
       <div class="group-title">Model-Detected Interactions</div>
-      <div class="group-desc">단변량 t-검정 비유의(p &gt; 0.05)이나 XGBoost가 강하게 활용. 공정 변수 간 비선형 상호작용 효과.</div>
+      <div class="group-desc">Not significant in univariate t-test (p &gt; 0.05) but strongly utilized by XGBoost. Nonlinear interaction effects between process variables.</div>
       <div class="sensor-list" id="shap-only-list">
         <span class="sensor-tag">sensor_288</span>
         <span class="sensor-tag">sensor_103</span>
@@ -859,7 +859,7 @@ footer {
       </div>
       <div class="group-count" style="color:#2D7D5A">14</div>
       <div class="group-title">Statistically Significant</div>
-      <div class="group-desc">t-검정 유의(p &lt; 0.05)이나 XGBoost가 활용하지 않음. 고신뢰 피처와 중복 정보(redundancy).</div>
+      <div class="group-desc">Significant in t-test (p &lt; 0.05) but not utilized by XGBoost. Redundant information relative to high-confidence features.</div>
       <div class="sensor-list" id="stat-only-list">
         <span class="sensor-tag">sensor_113</span>
         <span class="sensor-tag">sensor_123</span>
@@ -884,7 +884,7 @@ footer {
   <div class="wafer-block">
     <div class="wafer-eyebrow-dark">section 02 — root-cause map</div>
     <div class="wafer-title">Wafer-level sensor topology</div>
-    <div class="wafer-sub">SHAP ∩ t-test 교차 검증 · 6개 high-confidence 불량인자 · 원 크기 ∝ mean |SHAP|</div>
+    <div class="wafer-sub">SHAP ∩ t-test cross-validation · 6 high-confidence defect factors · circle size ∝ mean |SHAP|</div>
 
     <div class="wafer-layout">
       <!-- SVG wafer -->
@@ -1014,10 +1014,10 @@ footer {
           </div>
         </div>
         <div class="wafer-caption">
-          원 크기 ∝ mean |SHAP value|<br>
-          전체 6개 센서 = SHAP ∩ t-test 동시 유의<br>
-          위치는 위상 토폴로지를 시각화한 것이며<br>
-          실제 웨이퍼 좌표와 무관합니다
+          Circle size ∝ mean |SHAP value|<br>
+          All 6 sensors = significant in both SHAP ∩ t-test<br>
+          Positions represent phase topology —<br>
+          not actual wafer coordinates
         </div>
       </div>
     </div>
@@ -1039,8 +1039,8 @@ footer {
     <h2 class="section-heading">Interactive Prediction · ONNX Runtime Web</h2>
   </div>
   <p style="font-size:.8rem;color:var(--muted);line-height:1.7;margin-bottom:1.75rem;max-width:660px;">
-    고신뢰 불량인자 6개의 센서값을 조작하면 XGBoost ONNX 모델이 브라우저에서 실시간으로 Fail 확률을 추론합니다.
-    나머지 74개 피처는 학습 데이터 median 값으로 고정됩니다.
+    Adjust the 6 high-confidence defect factor sensor values to run real-time Fail probability inference
+    with the XGBoost ONNX model directly in your browser. The remaining 74 features are fixed at their training data median.
   </p>
 
   <div class="interactive-grid">
@@ -1126,9 +1126,9 @@ footer {
       <div class="shap-panel">
         <div class="shap-panel-heading">top contributing factors (shap) · nearest precomputed scenario</div>
         <div class="shap-caption">
-          80개 피처 전체에 대한 시나리오별 SHAP 기여도.
-          슬라이더 6개 외 변수는 학습 데이터 median 고정값 기준이며,
-          Top-20 외 센서도 해당 시나리오에서 유의한 기여를 가질 수 있습니다.
+          Per-scenario SHAP contributions across all 80 features.
+          Variables outside the 6 sliders are fixed at training data medians.
+          Sensors outside the Top-20 may carry significant contributions in a given scenario.
         </div>
         <div id="shapChart" style="height:270px"></div>
         <div id="shapNearestLabel" style="
@@ -1146,7 +1146,7 @@ footer {
 
 <footer>
   <div>
-    <div class="footer-name">황윤 (Yoon Hwang)</div>
+    <div class="footer-name">Yoon Hwang</div>
     <div class="footer-affil">University of Wisconsin-Madison · Data Science &amp; Economics &amp; Information Science</div>
   </div>
   <div class="footer-links">
@@ -1540,7 +1540,7 @@ function updateShapChart() {
   }, { responsive: true, displayModeBar: false });
 
   document.getElementById('shapNearestLabel').textContent =
-    `근사값 — nearest precomputed scenario · ${primaryFeat} sensor value = ${nearest.sensor_value.toFixed(4)}`;
+    `approx. — nearest precomputed scenario · ${primaryFeat} sensor value = ${nearest.sensor_value.toFixed(4)}`;
 
   // Driving sensor card
   const dsShapVal = nearest.shap_top10[primaryFeat] ?? 0;
